@@ -14,8 +14,21 @@ export const handler = async (args: CommonProps) => {
 };
 
 const me = async (props: CommonProps) => {
-  const { data } = await props.apiClient.getCurrentUserInfo();
-  writer(props).end(data, {
-    fields: ['login', 'email', 'name', 'projects_limit'],
-  });
+  try {
+    const { data } = await props.apiClient.getCurrentUserInfo();
+    writer(props).end(data, {
+      fields: ['login', 'email', 'name', 'projects_limit'],
+    });
+  } catch (error) {
+    if (error.response?.status === 401) {
+      // Re-authenticate and retry
+      await props.ensureAuth();
+      const { data } = await props.apiClient.getCurrentUserInfo();
+      writer(props).end(data, {
+        fields: ['login', 'email', 'name', 'projects_limit'],
+      });
+    } else {
+      throw error;
+    }
+  }
 };
