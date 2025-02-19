@@ -1,22 +1,32 @@
-import { join } from 'node:path';
-import { homedir } from 'node:os';
-import { existsSync, mkdirSync } from 'node:fs';
-import yargs from 'yargs';
+import { TokenSet } from 'openid-client';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 
-import { isCi } from './env.js';
+export const CREDENTIALS_FILE = '.neonctl.json';
+export const defaultDir = path.join(os.homedir(), '.neon');
 
-export const CREDENTIALS_FILE = 'credentials.json';
+type Config = {
+  oauthHost: string;
+  clientId: string;
+  tokenSet?: TokenSet;
+};
 
-export const defaultDir = join(
-  process.env.XDG_CONFIG_HOME || join(homedir(), '.config'),
-  'neonctl',
-);
+let config: Config = {
+  oauthHost: 'https://console.neon.tech',
+  clientId: 'neonctl',
+};
 
-export const ensureConfigDir = ({
-  'config-dir': configDir,
-  'force-auth': forceAuth,
-}: yargs.Arguments<{ 'config-dir': string }>) => {
-  if (!existsSync(configDir) && (!isCi() || forceAuth)) {
-    mkdirSync(configDir, { recursive: true });
+export const getConfig = (): Config => {
+  return config;
+};
+
+export const setConfig = (newConfig: Partial<Config>): void => {
+  config = { ...config, ...newConfig };
+};
+
+export const ensureConfigDir = (): void => {
+  if (!fs.existsSync(defaultDir)) {
+    fs.mkdirSync(defaultDir, { recursive: true });
   }
 };

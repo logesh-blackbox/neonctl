@@ -41,3 +41,8 @@ export const getGithubEnvVars = (env: Dict<string>) => {
 
   return Object.fromEntries(map);
 };
+
+export const getNeonApiKey = (): string | undefined => {
+  return process.env.NEON_API_KEY;
+};
+

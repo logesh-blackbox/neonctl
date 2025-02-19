@@ -159,3 +159,35 @@ To run commands from the local build, replace the `neonctl` command with `node d
 ```shell
 node dist branches --help
 ```
+
+## CI Usage
+
+When using neonctl in a CI environment, make sure to set the following environment variable:
+
+- NEON_API_KEY: Your Neon API key for authentication
+
+Example:
+
+```bash
+export CI=true
+export NEON_API_KEY="your_api_key_here"
+neonctl projects list
+```
+
+The CLI will automatically detect the CI environment and use the NEON_API_KEY for authentication instead of the interactive browser-based flow.
+
+## CI Usage
+
+When using neonctl in a CI environment, make sure to set the following environment variable:
+
+- NEON_API_KEY: Your Neon API key for authentication
+
+Example:
+
+```bash
+export CI=true
+export NEON_API_KEY="your_api_key_here"
+neonctl projects list
+```
+
+The CLI will automatically detect the CI environment and use the NEON_API_KEY for authentication instead of the interactive browser-based flow.

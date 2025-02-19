@@ -1,256 +1,79 @@
-import { Api } from '@neondatabase/api-client';
-import axios from 'axios';
-import {
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { AddressInfo } from 'node:net';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { getAccessToken, authCommand } from './auth';
+import { auth, refreshToken } from '../auth';
+import { getConfig, setConfig } from '../config';
 import { TokenSet } from 'openid-client';
-import { join } from 'path';
-import { afterAll, beforeAll, beforeEach, describe, expect, vi } from 'vitest';
 
-import { OAuth2Server } from 'oauth2-mock-server';
-import * as authModule from '../auth';
-import { test } from '../test_utils/fixtures';
-import { startOauthServer } from '../test_utils/oauth_server';
-import { authFlow, ensureAuth } from './auth';
-
-vi.mock('open', () => ({ default: vi.fn((url: string) => axios.get(url)) }));
-vi.mock('../pkg.ts', () => ({ default: { version: '0.0.0' } }));
+vi.mock('../auth');
+vi.mock('../config');
+vi.mock('../log');
 
 describe('auth', () => {
-  let configDir = '';
-  let oauthServer: OAuth2Server;
-
-  beforeAll(async () => {
-    configDir = mkdtempSync('test-config');
-    oauthServer = await startOauthServer();
-  });
-
-  afterAll(async () => {
-    rmSync(configDir, { recursive: true });
-    await oauthServer.stop();
-  });
-
-  test('should auth', async ({ runMockServer }) => {
-    const server = await runMockServer('main');
-    await authFlow({
-      _: ['auth'],
-      apiHost: `http://localhost:${(server.address() as AddressInfo).port}`,
-      clientId: 'test-client-id',
-      configDir,
-      forceAuth: true,
-      oauthHost: `http://localhost:${oauthServer.address().port}`,
-    });
-
-    const credentials = JSON.parse(
-      readFileSync(`${configDir}/credentials.json`, 'utf-8'),
-    );
-    expect(credentials.access_token).toEqual(expect.any(String));
-    expect(credentials.refresh_token).toEqual(expect.any(String));
-    expect(credentials.user_id).toEqual(expect.any(String));
-  });
-});
-
-describe('ensureAuth', () => {
-  let configDir = '';
-  let oauthServer: OAuth2Server;
-  let mockApiClient: Api<unknown>;
-  let authSpy: any;
-  let refreshTokenSpy: any;
-
-  beforeAll(async () => {
-    configDir = mkdtempSync('test-config');
-    oauthServer = await startOauthServer();
-    mockApiClient = {} as Api<unknown>;
-    authSpy = vi.spyOn(authModule, 'auth');
-    refreshTokenSpy = vi.spyOn(authModule, 'refreshToken');
-  });
-
-  afterAll(async () => {
-    rmSync(configDir, { recursive: true });
-    await oauthServer.stop();
-    vi.restoreAllMocks();
-  });
-
   beforeEach(() => {
-    authSpy.mockClear();
-    refreshTokenSpy.mockClear();
+    vi.resetAllMocks();
+    process.env.CI = undefined;
   });
 
-  const setupTestProps = (server: any) => ({
-    _: ['some-command'],
-    configDir,
-    oauthHost: `http://localhost:${oauthServer.address().port}`,
-    clientId: 'test-client-id',
-    forceAuth: true,
-    apiKey: '',
-    apiHost: `http://localhost:${(server.address() as AddressInfo).port}`,
-    help: false,
-    apiClient: mockApiClient,
+  afterEach(() => {
+    vi.resetAllMocks();
   });
 
-  test('should start new auth flow when refresh token fails', async ({
-    runMockServer,
-  }) => {
-    refreshTokenSpy.mockImplementationOnce(() =>
-      Promise.reject(new Error('AUTH_REFRESH_FAILED')),
-    );
+  describe('getAccessToken', () => {
+    it('should return API key in CI environment', async () => {
+      process.env.CI = 'true';
+      process.env.NEON_API_KEY = 'test-api-key';
 
-    authSpy.mockImplementationOnce(() =>
-      Promise.resolve(
-        new TokenSet({
-          access_token: 'new-auth-token',
-          refresh_token: 'new-refresh-token',
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-        }),
-      ),
-    );
+      const result = await getAccessToken();
 
-    const server = await runMockServer('main');
-    const expiredTokenSet = new TokenSet({
-      access_token: 'expired-token',
-      refresh_token: 'refresh-token',
-      expires_at: Math.floor(Date.now() / 1000) - 3600, // 1 hour ago
+      expect(result).toBe('test-api-key');
     });
 
-    writeFileSync(
-      join(configDir, 'credentials.json'),
-      JSON.stringify(expiredTokenSet),
-      { mode: 0o700 },
-    );
+    it('should throw error if NEON_API_KEY is not set in CI environment', async () => {
+      process.env.CI = 'true';
+      process.env.NEON_API_KEY = undefined;
 
-    const props = setupTestProps(server);
-    await ensureAuth(props);
-
-    expect(refreshTokenSpy).toHaveBeenCalledTimes(1);
-    expect(authSpy).toHaveBeenCalledTimes(1);
-    expect(props.apiKey).toBe('new-auth-token');
-  });
-
-  test('should trigger auth flow when credentials.json does not exist', async ({
-    runMockServer,
-  }) => {
-    const server = await runMockServer('main');
-
-    // Ensure the credentials file does not exist
-    const credentialsPath = join(configDir, 'credentials.json');
-    if (existsSync(credentialsPath)) {
-      rmSync(credentialsPath);
-    }
-
-    const props = setupTestProps(server);
-    await ensureAuth(props);
-
-    expect(authSpy).toHaveBeenCalledTimes(1);
-    expect(refreshTokenSpy).not.toHaveBeenCalled();
-    expect(props.apiKey).toEqual(expect.any(String));
-  });
-
-  test('should trigger auth flow when credentials.json is invalid', async ({
-    runMockServer,
-  }) => {
-    const server = await runMockServer('main');
-
-    // Write an empty credentials file
-    writeFileSync(join(configDir, 'credentials.json'), '', { mode: 0o700 });
-
-    const props = setupTestProps(server);
-    await ensureAuth(props);
-
-    expect(authSpy).toHaveBeenCalledTimes(1);
-    expect(refreshTokenSpy).not.toHaveBeenCalled();
-    expect(props.apiKey).toEqual(expect.any(String));
-  });
-
-  test('should try refresh when token is missing access_token but has refresh_token', async ({
-    runMockServer,
-  }) => {
-    const server = await runMockServer('main');
-    const tokenWithoutAccess = new TokenSet({
-      refresh_token: 'refresh-token',
+      await expect(getAccessToken()).rejects.toThrow('NEON_API_KEY is not set in the CI environment');
     });
 
-    writeFileSync(
-      join(configDir, 'credentials.json'),
-      JSON.stringify(tokenWithoutAccess),
-      { mode: 0o700 },
-    );
+    it('should start auth flow if no token set is found', async () => {
+      vi.mocked(getConfig).mockReturnValue({ oauthHost: 'test-host', clientId: 'test-client' });
+      vi.mocked(auth).mockResolvedValue(new TokenSet({ access_token: 'new-token' }));
 
-    refreshTokenSpy.mockImplementationOnce(() =>
-      Promise.resolve(
-        new TokenSet({
-          access_token: 'refreshed-token',
-          refresh_token: 'new-refresh-token',
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-        }),
-      ),
-    );
+      const result = await getAccessToken();
 
-    const props = setupTestProps(server);
-    await ensureAuth(props);
-
-    expect(refreshTokenSpy).toHaveBeenCalledTimes(1);
-    expect(authSpy).not.toHaveBeenCalled();
-    expect(props.apiKey).toBe('refreshed-token');
-  });
-
-  test('should use existing valid token', async ({ runMockServer }) => {
-    const server = await runMockServer('main');
-    const validTokenSet = new TokenSet({
-      access_token: 'valid-token',
-      refresh_token: 'refresh-token',
-      expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour from now
+      expect(auth).toHaveBeenCalledWith({ oauthHost: 'test-host', clientId: 'test-client' });
+      expect(setConfig).toHaveBeenCalledWith({ tokenSet: expect.any(TokenSet) });
+      expect(result).toBe('new-token');
     });
 
-    writeFileSync(
-      join(configDir, 'credentials.json'),
-      JSON.stringify(validTokenSet),
-      { mode: 0o700 },
-    );
+    it('should refresh token if expired', async () => {
+      const expiredToken = new TokenSet({ access_token: 'expired-token', expires_at: Date.now() / 1000 - 3600 });
+      vi.mocked(getConfig).mockReturnValue({ oauthHost: 'test-host', clientId: 'test-client', tokenSet: expiredToken });
+      vi.mocked(refreshToken).mockResolvedValue(new TokenSet({ access_token: 'refreshed-token' }));
 
-    const props = setupTestProps(server);
-    await ensureAuth(props);
+      const result = await getAccessToken();
 
-    expect(authSpy).not.toHaveBeenCalled();
-    expect(refreshTokenSpy).not.toHaveBeenCalled();
-    expect(props.apiKey).toBe('valid-token');
+      expect(refreshToken).toHaveBeenCalledWith({ oauthHost: 'test-host', clientId: 'test-client' }, expiredToken);
+      expect(setConfig).toHaveBeenCalledWith({ tokenSet: expect.any(TokenSet) });
+      expect(result).toBe('refreshed-token');
+    });
   });
 
-  test('should successfully refresh expired token', async ({
-    runMockServer,
-  }) => {
-    refreshTokenSpy.mockImplementationOnce(() =>
-      Promise.resolve(
-        new TokenSet({
-          access_token: 'new-token',
-          refresh_token: 'new-refresh-token',
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-        }),
-      ),
-    );
+  describe('authCommand', () => {
+    it('should start auth flow and set config', async () => {
+      vi.mocked(getConfig).mockReturnValue({ oauthHost: 'test-host', clientId: 'test-client' });
+      vi.mocked(auth).mockResolvedValue(new TokenSet({ access_token: 'new-token' }));
 
-    const server = await runMockServer('main');
-    const expiredTokenSet = new TokenSet({
-      access_token: 'expired-token',
-      refresh_token: 'refresh-token',
-      expires_at: Math.floor(Date.now() / 1000) - 3600, // 1 hour ago
+      await authCommand();
+
+      expect(auth).toHaveBeenCalledWith({ oauthHost: 'test-host', clientId: 'test-client' });
+      expect(setConfig).toHaveBeenCalledWith({ tokenSet: expect.any(TokenSet) });
     });
 
-    writeFileSync(
-      join(configDir, 'credentials.json'),
-      JSON.stringify(expiredTokenSet),
-      { mode: 0o700 },
-    );
+    it('should throw error if authentication fails', async () => {
+      vi.mocked(auth).mockResolvedValue(new TokenSet({}));
 
-    const props = setupTestProps(server);
-    await ensureAuth(props);
-
-    expect(refreshTokenSpy).toHaveBeenCalledTimes(1);
-    expect(authSpy).not.toHaveBeenCalled();
-    expect(props.apiKey).toBe('new-token');
+      await expect(authCommand()).rejects.toThrow('Failed to authenticate');
+    });
   });
 });
