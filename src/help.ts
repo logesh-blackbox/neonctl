@@ -113,7 +113,17 @@ const formatHelp = (help: string) => {
     if (optionsBlock.length === 0) {
       break;
     }
-    result.push(optionsBlock.shift() as string);
+    const header = optionsBlock.shift() as string;
+    // Skip global options for project commands unless explicitly requesting help
+    if (
+      header.toLowerCase().includes('global options:') &&
+      process.argv.some((arg) => arg === 'project' || arg === 'projects') &&
+      !process.argv.includes('--help') &&
+      !process.argv.includes('-h')
+    ) {
+      continue;
+    }
+    result.push(header);
     optionsBlock.forEach((line) => {
       const [option, description] = splitColumns(line);
       const ui = cliui({
