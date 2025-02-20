@@ -10,3 +10,7 @@ bundle/
 coverage
 tmp/
 .history
+
+# Python cache files
+__pycache__/
+*.pyc
