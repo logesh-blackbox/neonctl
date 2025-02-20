@@ -18,10 +18,24 @@ const ERROR_MATCHERS = [
 export const isAuthenticationError = (error: unknown): boolean => {
   if (!error) return false;
 
-  // Check if it's an axios error with invalid_request
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message: string }).message;
-    return message.toLowerCase().includes('invalid_request');
+  // Check if it's an axios error with authentication related errors
+  if (error && typeof error === 'object') {
+    if ('message' in error) {
+      const message = (error as { message: string }).message.toLowerCase();
+      return (
+        message.includes('invalid_request') ||
+        message.includes('unauthorized') ||
+        message.includes('forbidden') ||
+        message.includes('authentication failed') ||
+        message.includes('not authenticated')
+      );
+    }
+
+    // Check for HTTP status codes
+    if ('response' in error && (error as any).response?.status) {
+      const status = (error as any).response.status;
+      return status === 401 || status === 403;
+    }
   }
   return false;
 };

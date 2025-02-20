@@ -17,35 +17,80 @@ export const handler = async (args: CommonProps) => {
   await me(args);
 };
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
+
 const writeUserInfo = (props: CommonProps, data: any) => {
   writer(props).end(data, {
     fields: ['login', 'email', 'name', 'projects_limit'],
   });
 };
 
-const me = async (props: CommonProps) => {
-  try {
-    const { data } = await props.apiClient.getCurrentUserInfo();
-    writeUserInfo(props, data);
-  } catch (error) {
-    if (isAuthenticationError(error)) {
-      log.info('Authentication required. Starting authentication flow...');
-      try {
-        // Trigger authentication flow
-        await auth({
-          oauthHost: props.apiHost || 'https://console.neon.tech',
-          clientId: 'neonctl',
-        });
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-        // Retry fetching user info after authentication
-        const { data } = await props.apiClient.getCurrentUserInfo();
-        writeUserInfo(props, data);
-      } catch (authError) {
-        log.error('Authentication failed');
-        throw authError;
+const retryWithDelay = async <T>(
+  fn: () => Promise<T>,
+  retries: number = MAX_RETRIES,
+  delay: number = RETRY_DELAY,
+): Promise<T> => {
+  try {
+    return await fn();
+  } catch (error) {
+    if (retries > 0) {
+      log.debug(`Retrying operation. ${retries} attempts remaining...`);
+      await sleep(delay);
+      return retryWithDelay(fn, retries - 1, delay);
+    }
+    throw error;
+  }
+};
+
+const me = async (props: CommonProps) => {
+  const fetchUserInfo = async () => {
+    try {
+      const { data } = await props.apiClient.getCurrentUserInfo();
+      return data;
+    } catch (error) {
+      if (isAuthenticationError(error)) {
+        log.info('Authentication required. Starting authentication flow...');
+        try {
+          // Trigger authentication flow
+          await auth({
+            oauthHost: props.apiHost || 'https://console.neon.tech',
+            clientId: 'neonctl',
+          });
+
+          // Retry fetching user info after authentication
+          log.info('Authentication successful. Fetching user information...');
+          const { data } = await props.apiClient.getCurrentUserInfo();
+          return data;
+        } catch (authError) {
+          log.error(
+            'Authentication failed. Please try again or run "neon auth" command.',
+          );
+          if (authError instanceof Error) {
+            log.debug(`Authentication error details: ${authError.message}`);
+          }
+          throw new Error('Failed to authenticate. Please try again.');
+        }
       }
-    } else {
       throw error;
     }
+  };
+
+  try {
+    // Attempt to fetch user info with retries
+    const data = await retryWithDelay(fetchUserInfo);
+    writeUserInfo(props, data);
+  } catch (error) {
+    if (error instanceof Error) {
+      log.error(error.message);
+      if (error.message.includes('Authentication failed')) {
+        log.info(
+          'Tip: You can manually authenticate using the "neon auth" command.',
+        );
+      }
+    }
+    throw error;
   }
 };
