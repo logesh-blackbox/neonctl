@@ -65,13 +65,24 @@ const me = async (props: CommonProps) => {
           const { data } = await props.apiClient.getCurrentUserInfo();
           return data;
         } catch (authError) {
-          log.error(
-            'Authentication failed. Please try again or run "neon auth" command.',
-          );
-          if (authError instanceof Error) {
-            log.debug(`Authentication error details: ${authError.message}`);
+          if (
+            authError instanceof Error &&
+            authError.message.includes('timed out')
+          ) {
+            log.error('Authentication timed out. You can:');
+            log.info('1. Try again with the "neon me" command');
+            log.info('2. Run "neon auth" and then "neon me"');
+            log.info('3. Open the auth URL directly in your browser');
+            throw new Error('Authentication timed out. Please try again.');
+          } else {
+            log.error(
+              'Authentication failed. Please try again or run "neon auth" command.',
+            );
+            if (authError instanceof Error) {
+              log.debug(`Authentication error details: ${authError.message}`);
+            }
+            throw new Error('Failed to authenticate. Please try again.');
           }
-          throw new Error('Failed to authenticate. Please try again.');
         }
       }
       throw error;
