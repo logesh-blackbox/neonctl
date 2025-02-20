@@ -523,6 +523,39 @@ const bootstrap = async (props: CommonProps) => {
     );
   }
 
+  // Generate .neon file with default configuration
+  const neonFilePath = `${root}/.neon`;
+  const neonConfig = {
+    project: projectName,
+    databases: {
+      default: {
+        name: `${projectName}-db`,
+        owner: DEFAULT_NEON_ROLE_NAME
+      }
+    },
+    branches: {
+      main: {
+        name: 'main',
+        default: true
+      },
+      dev: {
+        name: 'dev',
+        parent: 'main'
+      }
+    }
+  };
+  
+  try {
+    if (!folderExists) {
+      // Create the directory if it doesn't exist
+      fs.mkdirSync(root, { recursive: true });
+    }
+    writeFileSync(neonFilePath, JSON.stringify(neonConfig, null, 2), 'utf8');
+    out.text(chalk.green(`Generated .neon configuration file at ${neonFilePath}`));
+  } catch (error) {
+    out.text(chalk.yellow(`Warning: Could not create .neon file: ${error}`));
+  }
+
   const options: BootstrapOptions = {
     auth: 'auth.js',
     framework: 'Next.js',
