@@ -203,9 +203,7 @@ const list = async (props: CommonProps & { orgId?: string }) => {
   };
 
   const ownedProjects = await getList(props.apiClient.listProjects);
-  const sharedProjects = props.orgId
-    ? []
-    : await getList(props.apiClient.listSharedProjects);
+  const sharedProjects = await getList(props.apiClient.listSharedProjects);
 
   const out = writer(props);
 
