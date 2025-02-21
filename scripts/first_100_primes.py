@@ -37,9 +37,9 @@ def get_first_n_primes(n):
 
 def main():
     """
-    Main function to print the first 100 prime numbers.
+    Main function to print the first 50 prime numbers.
     """
-    n = 100
+    n = 50
     primes = get_first_n_primes(n)
     print(f"First {n} prime numbers:")
     for i, prime in enumerate(primes, 1):
