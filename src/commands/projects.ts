@@ -203,26 +203,31 @@ const list = async (props: CommonProps & { orgId?: string }) => {
   };
 
   const ownedProjects = await getList(props.apiClient.listProjects);
-  const sharedProjects = props.orgId
-    ? []
-    : await getList(props.apiClient.listSharedProjects);
+  const sharedProjects = await getList(props.apiClient.listSharedProjects);
 
   const out = writer(props);
 
-  out.write(ownedProjects, {
+  // Filter projects by org_id if specified
+  const filteredOwnedProjects = props.orgId
+    ? ownedProjects.filter((p) => p.org_id === props.orgId)
+    : ownedProjects;
+
+  const filteredSharedProjects = props.orgId
+    ? sharedProjects.filter((p) => p.org_id === props.orgId)
+    : sharedProjects;
+
+  out.write(filteredOwnedProjects, {
     fields: PROJECT_FIELDS,
     title: 'Projects',
     emptyMessage:
       "You don't have any projects yet. See how to create a new project:\n> neonctl projects create --help",
   });
 
-  if (!props.orgId) {
-    out.write(sharedProjects, {
-      fields: PROJECT_FIELDS,
-      title: 'Shared with you',
-      emptyMessage: 'No projects have been shared with you',
-    });
-  }
+  out.write(filteredSharedProjects, {
+    fields: PROJECT_FIELDS,
+    title: 'Shared with you',
+    emptyMessage: 'No projects have been shared with you',
+  });
 
   out.end();
 };
