@@ -31,17 +31,40 @@ def get_first_n_primes(n):
         num += 1
     return primes
 
+def get_first_n_even(n):
+    """
+    Generate the first n even numbers.
+    Args:
+        n (int): Number of even numbers to generate
+    Returns:
+        list: List containing first n even numbers
+    """
+    return [2 * i for i in range(1, n + 1)]
+
+def print_numbers(numbers, title):
+    """
+    Print numbers in a formatted way.
+    Args:
+        numbers (list): List of numbers to print
+        title (str): Title to display before numbers
+    """
+    print(f"\n{title}:")
+    for i in range(0, len(numbers), 10):
+        line = numbers[i:i + 10]
+        print(" ".join(f"{num:4d}" for num in line))
+
 def main():
     """
-    Main function to print the first 100 prime numbers.
+    Main function to print the first 100 prime numbers and first 100 even numbers.
     """
     n = 100
+    # Get and print prime numbers
     primes = get_first_n_primes(n)
-    print(f"First {n} prime numbers:")
-    # Print 10 numbers per line for better readability
-    for i in range(0, len(primes), 10):
-        line = primes[i:i + 10]
-        print(" ".join(f"{num:4d}" for num in line))
+    print_numbers(primes, f"First {n} prime numbers")
+    
+    # Get and print even numbers
+    even_numbers = get_first_n_even(n)
+    print_numbers(even_numbers, f"First {n} even numbers")
 
 if __name__ == "__main__":
     main()
