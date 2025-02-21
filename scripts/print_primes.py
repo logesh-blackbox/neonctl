@@ -1,94 +1,47 @@
-"""
-This script generates and prints prime numbers using the Sieve of Eratosthenes algorithm.
-Usage: python3 print_primes.py [number_of_primes]
-"""
+#!/usr/bin/env python3
 
-import sys
-import math
-from typing import List
-
-def sieve_of_eratosthenes(n: int) -> List[int]:
+def is_prime(n):
     """
-    Generate prime numbers up to n using the Sieve of Eratosthenes algorithm.
-    
+    Check if a number is prime.
     Args:
-        n (int): The upper limit for generating prime numbers.
-    
+        n (int): The number to check
     Returns:
-        List[int]: A list of prime numbers up to n.
+        bool: True if the number is prime, False otherwise
     """
     if n < 2:
-        return []
-    
-    sieve = [True] * (n + 1)
-    sieve[0] = sieve[1] = False
-    
-    for i in range(2, int(n**0.5) + 1):
-        if sieve[i]:
-            for j in range(i*i, n + 1, i):
-                sieve[j] = False
-    
-    return [i for i in range(2, n + 1) if sieve[i]]
+        return False
+    for i in range(2, int(n ** 0.5) + 1):
+        if n % i == 0:
+            return False
+    return True
 
-def estimate_nth_prime(n: int) -> int:
-    """
-    Estimate the value of the nth prime number.
-    
-    Args:
-        n (int): The position of the prime number to estimate.
-    
-    Returns:
-        int: An estimate of the nth prime number.
-    """
-    if n < 6:
-        return 13  # The 6th prime is 13
-    return int(n * (math.log(n) + math.log(math.log(n))))
-
-def generate_n_primes(n: int) -> List[int]:
+def get_first_n_primes(n):
     """
     Generate the first n prime numbers.
-    
     Args:
-        n (int): The number of prime numbers to generate.
-    
+        n (int): Number of prime numbers to generate
     Returns:
-        List[int]: A list of the first n prime numbers.
+        list: List containing first n prime numbers
     """
-    if n < 1:
-        return []
-    
-    upper_bound = estimate_nth_prime(n)
-    while True:
-        primes = sieve_of_eratosthenes(upper_bound)
-        if len(primes) >= n:
-            return primes[:n]
-        upper_bound = int(upper_bound * 1.2)  # Increase by 20%
+    primes = []
+    num = 2
+    while len(primes) < n:
+        if is_prime(num):
+            primes.append(num)
+        num += 1
+    return primes
 
 def main():
-    try:
-        if len(sys.argv) > 1:
-            n = int(sys.argv[1])
-            if n < 1:
-                raise ValueError("Number of primes must be a positive integer.")
-            if n > 1_000_000:
-                raise ValueError("Number of primes is too large. Maximum allowed is 1,000,000.")
-        else:
-            n = 100  # Default to 100 primes if no argument is provided
-        
-        primes = generate_n_primes(n)
-        print(f"The first {n} prime numbers are:")
-        for i, prime in enumerate(primes, 1):
-            print(f"{i:7d}: {prime:10d}")
-    
-    except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-    except MemoryError:
-        print("Error: Not enough memory to complete the operation.", file=sys.stderr)
-        sys.exit(1)
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}", file=sys.stderr)
-        sys.exit(1)
+    """
+    Main function to print the first 100 prime numbers.
+    """
+    n = 100
+    primes = get_first_n_primes(n)
+    print(f"First {n} prime numbers:")
+    # Print 10 numbers per line for better readability
+    for i in range(0, len(primes), 10):
+        line = primes[i:i + 10]
+        print(" ".join(f"{num:4d}" for num in line))
 
 if __name__ == "__main__":
     main()
