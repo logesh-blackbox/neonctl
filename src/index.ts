@@ -122,6 +122,12 @@ builder = builder
       default: true,
     },
   })
+  .middleware(async (argv) => {
+    if (argv._.length === 0 || argv._[0] === 'create-app') {
+      return;
+    }
+    await ensureAuth(argv);
+  })
   .middleware((args) => {
     fillInArgs(args);
   }, true)
