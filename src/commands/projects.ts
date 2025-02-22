@@ -54,6 +54,11 @@ export const builder = (argv: yargs.Argv) => {
             describe: 'List projects of a given organization',
             type: 'string',
           },
+          'hide-shared': {
+            describe: 'Hide shared projects from the output',
+            type: 'boolean',
+            default: false,
+          },
         }),
       async (args) => {
         await list(args as any);
@@ -172,59 +177,74 @@ export const handler = (args: yargs.Argv) => {
   return args;
 };
 
-const list = async (props: CommonProps & { orgId?: string }) => {
+const list = async (props: CommonProps & { orgId?: string; hideShared?: boolean }) => {
   const getList = async (
     fn:
       | typeof props.apiClient.listProjects
       | typeof props.apiClient.listSharedProjects,
+    options: { orgId?: string } = {},
   ) => {
-    const result: ProjectListItem[] = [];
-    let cursor: string | undefined;
-    let end = false;
-    while (!end) {
-      const { data } = await fn({
-        limit: PROJECTS_LIST_LIMIT,
-        org_id: props.orgId,
-        cursor,
-      });
-      result.push(...data.projects);
-      cursor = data.pagination?.cursor;
-      log.debug(
-        'Got %d projects, with cursor: %s',
-        data.projects.length,
-        cursor,
-      );
-      if (data.projects.length < PROJECTS_LIST_LIMIT) {
-        end = true;
+    try {
+      const result: ProjectListItem[] = [];
+      let cursor: string | undefined;
+      let end = false;
+      while (!end) {
+        const { data } = await fn({
+          limit: PROJECTS_LIST_LIMIT,
+          org_id: options.orgId,
+          cursor,
+        });
+        result.push(...data.projects);
+        cursor = data.pagination?.cursor;
+        log.debug(
+          'Got %d projects, with cursor: %s',
+          data.projects.length,
+          cursor,
+        );
+        if (data.projects.length < PROJECTS_LIST_LIMIT) {
+          end = true;
+        }
       }
+      return result;
+    } catch (error) {
+      log.error('Failed to fetch projects:', error);
+      return [];
     }
-
-    return result;
   };
 
-  const ownedProjects = await getList(props.apiClient.listProjects);
-  const sharedProjects = props.orgId
-    ? []
-    : await getList(props.apiClient.listSharedProjects);
+  try {
+    // Fetch owned and shared projects in parallel
+    const [ownedProjects, sharedProjects] = await Promise.all([
+      getList(props.apiClient.listProjects, { orgId: props.orgId }),
+      props.hideShared ? [] : getList(props.apiClient.listSharedProjects),
+    ]);
 
-  const out = writer(props);
+    // Sort projects by name for better readability
+    const sortedOwnedProjects = [...ownedProjects].sort((a, b) => a.name.localeCompare(b.name));
+    const sortedSharedProjects = [...sharedProjects].sort((a, b) => a.name.localeCompare(b.name));
 
-  out.write(ownedProjects, {
-    fields: PROJECT_FIELDS,
-    title: 'Projects',
-    emptyMessage:
-      "You don't have any projects yet. See how to create a new project:\n> neonctl projects create --help",
-  });
+    const out = writer(props);
 
-  if (!props.orgId) {
-    out.write(sharedProjects, {
+    out.write(sortedOwnedProjects, {
       fields: PROJECT_FIELDS,
-      title: 'Shared with you',
-      emptyMessage: 'No projects have been shared with you',
+      title: 'Projects',
+      emptyMessage:
+        "You don't have any projects yet. See how to create a new project:\n> neonctl projects create --help",
     });
-  }
 
-  out.end();
+    if (!props.hideShared) {
+      out.write(sortedSharedProjects, {
+        fields: PROJECT_FIELDS,
+        title: 'Shared with you',
+        emptyMessage: 'No projects have been shared with you',
+      });
+    }
+
+    out.end();
+  } catch (error) {
+    log.error('Failed to list projects:', error);
+    throw error;
+  }
 };
 
 const create = async (
