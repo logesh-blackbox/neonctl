@@ -1,5 +1,7 @@
 # Neon CLI
 
+*Read this in other languages: [Español](README.es.md)*
+
 The Neon CLI is a command-line interface that lets you manage [Neon Serverless Postgres](https://neon.tech/) directly from the terminal. For the complete documentation, see [Neon CLI](https://neon.tech/docs/reference/neon-cli).
 
 ## Table of Contents
