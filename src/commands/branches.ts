@@ -1,4 +1,5 @@
 import { Branch, EndpointType } from '@neondatabase/api-client';
+import { isAxiosError } from 'axios';
 import yargs from 'yargs';
 
 import { IdOrNameProps, ProjectScopeProps } from '../types.js';
@@ -335,67 +336,76 @@ const create = async (
     }
   }
 
-  const { data } = await retryOnLock(() =>
-    props.apiClient.createProjectBranch(props.projectId, {
-      branch: {
-        name: props.name,
-        ...parentProps,
-        ...(props.schemaOnly ? { init_source: 'schema-only' } : {}),
-      },
-      endpoints: props.compute
-        ? [
-            {
-              type: props.type,
-              suspend_timeout_seconds:
-                props.suspendTimeout === 0 ? undefined : props.suspendTimeout,
-              ...(props.cu ? getComputeUnits(props.cu) : undefined),
-            },
-          ]
-        : [],
-      annotation_value: props.annotation
-        ? JSON.parse(props.annotation)
-        : undefined,
-    }),
-  );
-
-  const parent = branches.find((b) => b.id === data.branch.parent_id);
-  if (parent?.protected) {
-    log.warning(
-      'The parent branch is protected; a unique role password has been generated for the new branch.',
+  try {
+    const { data } = await retryOnLock(() =>
+      props.apiClient.createProjectBranch(props.projectId, {
+        branch: {
+          name: props.name,
+          ...parentProps,
+          ...(props.schemaOnly ? { init_source: 'schema-only' } : {}),
+        },
+        endpoints: props.compute
+          ? [
+              {
+                type: props.type,
+                suspend_timeout_seconds:
+                  props.suspendTimeout === 0 ? undefined : props.suspendTimeout,
+                ...(props.cu ? getComputeUnits(props.cu) : undefined),
+              },
+            ]
+          : [],
+        annotation_value: props.annotation
+          ? JSON.parse(props.annotation)
+          : undefined,
+      }),
     );
-  }
 
-  const out = writer(props);
-
-  out.write(data.branch, {
-    fields: BRANCH_FIELDS,
-    title: 'branch',
-    emptyMessage: 'No branches have been found.',
-  });
-
-  if (data.endpoints?.length > 0) {
-    out.write(data.endpoints, {
-      fields: ['id', 'created_at'],
-      title: 'endpoints',
-      emptyMessage: 'No endpoints have been found.',
-    });
-  }
-  if (data.connection_uris?.length) {
-    out.write(data.connection_uris, {
-      fields: ['connection_uri'],
-      title: 'connection_uris',
-      emptyMessage: 'No connection uris have been found',
-    });
-  }
-  out.end();
-
-  if (props.psql) {
-    if (!data.connection_uris?.length) {
-      throw new Error(`Branch ${data.branch.id} doesn't have a connection uri`);
+    const parent = branches.find((b) => b.id === data.branch.parent_id);
+    if (parent?.protected) {
+      log.warning(
+        'The parent branch is protected; a unique role password has been generated for the new branch.',
+      );
     }
-    const connection_uri = data.connection_uris[0].connection_uri;
-    const psqlArgs = props['--'];
-    await psql(connection_uri, psqlArgs);
+
+    const out = writer(props);
+
+    out.write(data.branch, {
+      fields: BRANCH_FIELDS,
+      title: 'branch',
+      emptyMessage: 'No branches have been found.',
+    });
+
+    if (data.endpoints?.length > 0) {
+      out.write(data.endpoints, {
+        fields: ['id', 'created_at'],
+        title: 'endpoints',
+        emptyMessage: 'No endpoints have been found.',
+      });
+    }
+    if (data.connection_uris?.length) {
+      out.write(data.connection_uris, {
+        fields: ['connection_uri'],
+        title: 'connection_uris',
+        emptyMessage: 'No connection uris have been found',
+      });
+    }
+    out.end();
+
+    if (props.psql) {
+      if (!data.connection_uris?.length) {
+        throw new Error(`Branch ${data.branch.id} doesn't have a connection uri`);
+      }
+      const connection_uri = data.connection_uris[0].connection_uri;
+      const psqlArgs = props['--'];
+      await psql(connection_uri, psqlArgs);
+    }
+  } catch (err) {
+    if (isAxiosError(err) && err.response?.status === 409) {
+      log.error(`Branch "${props.name}" already exists`);
+      process.exitCode = 2;
+      return;
+    }
+    throw err;
   }
 };
 
