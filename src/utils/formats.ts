@@ -1,7 +1,15 @@
-const HAIKU_REGEX = /^[a-z]+-[a-z]+-[a-z0-9]+$/;
+const BRANCH_PREFIX = 'br-';
+const BRANCH_REGEX = /^br-[a-z0-9]+(-[a-z0-9]+){1,}$/;
 
-export const looksLikeBranchId = (branch: string) =>
-  branch.startsWith('br-') && HAIKU_REGEX.test(branch.substring(3));
+/**
+ * Checks if the given branch identifier looks like a valid branch ID.
+ * @param branch - The branch identifier (string or number)
+ * @returns True if the branch looks like a valid branch ID, false otherwise
+ */
+export const looksLikeBranchId = (branch: string | number): boolean => {
+  const branchStr = typeof branch === 'number' ? branch.toString() : branch;
+  return BRANCH_REGEX.test(branchStr);
+};
 
 const LSN_REGEX = /^[a-fA-F0-9]{1,8}\/[a-fA-F0-9]{1,8}$/;
 
