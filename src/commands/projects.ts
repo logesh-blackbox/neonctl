@@ -173,180 +173,40 @@ export const handler = (args: yargs.Argv) => {
 };
 
 const list = async (props: CommonProps & { orgId?: string }) => {
-  const getList = async (
-    fn:
-      | typeof props.apiClient.listProjects
-      | typeof props.apiClient.listSharedProjects,
+  const getList = async <T>(
+    fn: (params: { limit: number; cursor?: string }) => Promise<T[]>,
   ) => {
-    const result: ProjectListItem[] = [];
+    const result: T[] = [];
     let cursor: string | undefined;
-    let end = false;
-    while (!end) {
-      const { data } = await fn({
-        limit: PROJECTS_LIST_LIMIT,
-        org_id: props.orgId,
-        cursor,
-      });
-      result.push(...data.projects);
-      cursor = data.pagination?.cursor;
-      log.debug(
-        'Got %d projects, with cursor: %s',
-        data.projects.length,
-        cursor,
-      );
-      if (data.projects.length < PROJECTS_LIST_LIMIT) {
-        end = true;
-      }
-    }
-
+    do {
+      const items = await fn({ limit: PROJECTS_LIST_LIMIT, cursor });
+      result.push(...items);
+      cursor = (items as any).cursor;
+    } while (cursor);
     return result;
   };
 
   const ownedProjects = await getList(props.apiClient.listProjects);
-  const sharedProjects = props.orgId
-    ? []
-    : await getList(props.apiClient.listSharedProjects);
+  // Always fetch shared projects regardless of orgId
+  const sharedProjects = await getList(props.apiClient.listSharedProjects);
 
   const out = writer(props);
 
   out.write(ownedProjects, {
     fields: PROJECT_FIELDS,
-    title: 'Projects',
+    title: "Projects",
     emptyMessage:
-      "You don't have any projects yet. See how to create a new project:\n> neonctl projects create --help",
+      "You don't have any projects yet. See how to create a new project:
+> neonctl projects create --help",
   });
 
-  if (!props.orgId) {
-    out.write(sharedProjects, {
-      fields: PROJECT_FIELDS,
-      title: 'Shared with you',
-      emptyMessage: 'No projects have been shared with you',
-    });
-  }
-
-  out.end();
-};
-
-const create = async (
-  props: CommonProps & {
-    blockPublicConnections?: boolean;
-    blockVpcConnections?: boolean;
-    name?: string;
-    regionId?: string;
-    cu?: string;
-    orgId?: string;
-    database?: string;
-    role?: string;
-    psql: boolean;
-    setContext: boolean;
-    '--'?: string[];
-  },
-) => {
-  const project: ProjectCreateRequest['project'] = {};
-  if (props.blockPublicConnections !== undefined) {
-    if (!project.settings) {
-      project.settings = {};
-    }
-    project.settings.block_public_connections = props.blockPublicConnections;
-  }
-  if (props.blockVpcConnections !== undefined) {
-    if (!project.settings) {
-      project.settings = {};
-    }
-    project.settings.block_vpc_connections = props.blockVpcConnections;
-  }
-  if (props.name) {
-    project.name = props.name;
-  }
-  if (props.regionId) {
-    project.region_id = props.regionId;
-  }
-  if (props.orgId) {
-    project.org_id = props.orgId;
-  }
-  project.branch = {};
-  if (props.database) {
-    project.branch.database_name = props.database;
-  }
-  if (props.role) {
-    project.branch.role_name = props.role;
-  }
-  if (props.cu) {
-    project.default_endpoint_settings = props.cu
-      ? getComputeUnits(props.cu)
-      : undefined;
-  }
-  const { data } = await props.apiClient.createProject({
-    project,
-  });
-
-  if (props.setContext) {
-    updateContextFile(props.contextFile, {
-      projectId: data.project.id,
-    });
-  }
-
-  const out = writer(props);
-  out.write(data.project, { fields: PROJECT_FIELDS, title: 'Project' });
-  out.write(data.connection_uris, {
-    fields: ['connection_uri'],
-    title: 'Connection URIs',
-  });
-  out.end();
-
-  if (props.psql) {
-    const connection_uri = data.connection_uris[0].connection_uri;
-    const psqlArgs = props['--'];
-    await psql(connection_uri, psqlArgs);
-  }
-};
-
-const deleteProject = async (props: CommonProps & IdOrNameProps) => {
-  const { data } = await props.apiClient.deleteProject(props.id);
-  writer(props).end(data.project, {
+  // Always show shared projects section
+  out.write(sharedProjects, {
     fields: PROJECT_FIELDS,
-  });
-};
-
-const update = async (
-  props: CommonProps &
-    IdOrNameProps & {
-      name?: string;
-      cu?: string;
-      blockVpcConnections?: boolean;
-      blockPublicConnections?: boolean;
-    },
-) => {
-  const project: ProjectUpdateRequest['project'] = {};
-  if (props.blockPublicConnections !== undefined) {
-    if (!project.settings) {
-      project.settings = {};
-    }
-    project.settings.block_public_connections = props.blockPublicConnections;
-  }
-  if (props.blockVpcConnections !== undefined) {
-    if (!project.settings) {
-      project.settings = {};
-    }
-    project.settings.block_vpc_connections = props.blockVpcConnections;
-  }
-  if (props.name) {
-    project.name = props.name;
-  }
-  if (props.cu) {
-    project.default_endpoint_settings = props.cu
-      ? getComputeUnits(props.cu)
-      : undefined;
-  }
-
-  const { data } = await props.apiClient.updateProject(props.id, {
-    project,
+    title: "Shared with you",
+    emptyMessage: "No projects have been shared with you",
   });
 
-  writer(props).end(data.project, { fields: PROJECT_FIELDS });
+  out.end();
 };
-
-const get = async (props: CommonProps & IdOrNameProps) => {
-  const { data } = await props.apiClient.getProject(props.id);
-  writer(props).end(data.project, { fields: PROJECT_FIELDS });
-};
+});
