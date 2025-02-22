@@ -14,6 +14,10 @@ describe('projects', () => {
     await testCliCommand(['projects', 'list', '--org-id', 'org-2']);
   });
 
+  test('list with hide-shared option', async ({ testCliCommand }) => {
+    await testCliCommand(['projects', 'list', '--hide-shared']);
+  });
+
   test('create', async ({ testCliCommand }) => {
     await testCliCommand(['projects', 'create', '--name', 'test_project']);
   });
