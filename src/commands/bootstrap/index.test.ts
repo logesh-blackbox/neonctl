@@ -6,6 +6,86 @@ import { log } from '../../log';
 import { test } from '../../test_utils/fixtures';
 
 describe('bootstrap/create-app', () => {
+  test('creates database with custom owner role', async ({ runMockServer }) => {
+    const server = await runMockServer('main');
+    const cp = fork(
+      join(process.cwd(), './dist/index.js'),
+      [
+        '--api-host',
+        `http://localhost:${(server.address() as AddressInfo).port}`,
+        '--output',
+        'yaml',
+        '--api-key',
+        'test-key',
+        '--no-analytics',
+        'create-app',
+        '--owner-name',
+        'custom_owner'
+      ],
+      {
+        stdio: 'pipe',
+        env: {
+          PATH: `mocks/bin:${process.env.PATH}`,
+        },
+      },
+    );
+
+    process.on('SIGINT', () => {
+      cp.kill();
+    });
+
+    let neonProjectCreated = false;
+    let ownerRoleCreated = false;
+
+    return new Promise<void>((resolve, reject) => {
+      cp.stdout?.on('data', (data) => {
+        const stdout = data.toString();
+        log.info(stdout);
+
+        if (stdout.includes('What is your project named')) {
+          cp.stdin?.write('my-app\n');
+        } else if (stdout.includes('Which package manager would you like to use')) {
+          cp.stdin?.write('\n');
+        } else if (stdout.includes('What framework would you like to use')) {
+          cp.stdin?.write('\n');
+        } else if (stdout.includes('What ORM would you like to use')) {
+          cp.stdin?.write('\t');
+          cp.stdin?.write('\n');
+        } else if (stdout.includes('What authentication framework do you want to use')) {
+          cp.stdin?.write('\n');
+        } else if (stdout.includes('What Neon project would you like to use')) {
+          neonProjectCreated = true;
+          cp.stdin?.write('\t');
+          cp.stdin?.write('\t');
+          cp.stdin?.write('\n');
+        } else if (stdout.includes('Where would you like to deploy')) {
+          cp.stdin?.write('\n');
+          cp.stdin?.write('\n');
+        } else if (stdout.includes('custom_owner')) {
+          ownerRoleCreated = true;
+        }
+      });
+
+      cp.stderr?.on('data', (data) => {
+        log.error(data.toString());
+      });
+
+      cp.on('error', (err) => {
+        throw err;
+      });
+
+      cp.on('close', (code) => {
+        try {
+          expect(code).toBe(0);
+          expect(neonProjectCreated).toBe(true);
+          expect(ownerRoleCreated).toBe(true);
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  });
   // We create an app without a schema and without deploying it, as
   // a very simple check that the CLI works. Eventually, we need
   // to have a much more complete test suite that actually verifies

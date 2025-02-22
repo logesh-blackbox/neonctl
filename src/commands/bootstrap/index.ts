@@ -31,9 +31,14 @@ export const aliases = ['bootstrap'];
 export const describe = 'Initialize a new Neon project';
 
 export const builder = (yargs: yargs.Argv) =>
-  yargs.option('context-file', {
-    hidden: true,
-  });
+  yargs
+    .option('context-file', {
+      hidden: true,
+    })
+    .option('owner-name', {
+      describe: 'Database owner role name (will be created if not exists)',
+      type: 'string',
+    });
 
 const onPromptState = (state: {
   value: InitialReturnValue;
@@ -63,6 +68,34 @@ type BootstrapOptions = {
 };
 
 export const DEFAULT_NEON_ROLE_NAME = 'neondb_owner';
+
+async function ensureRoleExists({
+  projectId,
+  branchId,
+  apiClient,
+  roleName,
+}: {
+  projectId: string;
+  branchId: string;
+  apiClient: Api<unknown>;
+  roleName: string;
+}): Promise<void> {
+  // Check if role exists
+  const { data: { roles } } = await apiClient.listProjectBranchRoles(projectId, branchId);
+  const roleExists = roles.some(role => role.name === roleName);
+  
+  if (!roleExists) {
+    // Create the role if it doesn't exist
+    await retryOnLock(() =>
+      apiClient.createProjectBranchRole(projectId, branchId, {
+        role: {
+          name: roleName,
+          no_login: false,
+        },
+      }),
+    );
+  }
+}
 
 // `getCreateNextAppCommand` returns the command for creating a Next app
 // with `create-next-app` for different package managers.
@@ -157,6 +190,17 @@ async function createDatabase({
   apiClient: Api<unknown>;
   ownerRole?: string;
 }): Promise<Database> {
+  // Determine the role name to use
+  const roleToUse = ownerRole || DEFAULT_NEON_ROLE_NAME;
+
+  // Ensure the role exists (creates it if it doesn't)
+  await ensureRoleExists({
+    projectId,
+    branchId,
+    apiClient,
+    roleName: roleToUse,
+  });
+
   const {
     data: { database },
   } = await retryOnLock(() =>
@@ -166,7 +210,7 @@ async function createDatabase({
           length: 5,
           type: 'url-safe',
         })}-db`,
-        owner_name: ownerRole || DEFAULT_NEON_ROLE_NAME,
+        owner_name: roleToUse,
       },
     }),
   );
@@ -322,6 +366,7 @@ async function deployApp({
     apiClient: props.apiClient,
     branchId,
     projectId: project.id,
+    ownerRole: props.ownerName,
   });
 
   writer(props).end(database, {
@@ -455,7 +500,7 @@ ${environmentVariables
   }
 }
 
-const bootstrap = async (props: CommonProps) => {
+const bootstrap = async (props: CommonProps & { ownerName?: string }) => {
   const out = writer(props);
 
   if (isCi()) {
@@ -716,6 +761,7 @@ const bootstrap = async (props: CommonProps) => {
         apiClient: props.apiClient,
         branchId: branch.id,
         projectId: project.id,
+        ownerRole: props.ownerName,
       });
 
       writer(props).end(branch, {
@@ -812,6 +858,7 @@ const bootstrap = async (props: CommonProps) => {
       apiClient: props.apiClient,
       branchId: branch.id,
       projectId: project.id,
+      ownerRole: props.ownerName,
     });
 
     writer(props).end(database, {
