@@ -141,6 +141,17 @@ describe('branches', () => {
     ]);
   });
 
+  test('fails with exit code 2 when branch already exists', async ({ testCliCommand }) => {
+    await testCliCommand(
+      ['branches', 'create', '--project-id', 'test', '--name', 'test-branch'],
+      {
+        mockDir: 'branch_exists',
+        code: 2,
+        stderr: 'Branch "test-branch" already exists\n',
+      },
+    );
+  });
+
   test('create with autoscaled CU', async ({ testCliCommand }) => {
     await testCliCommand([
       'branches',

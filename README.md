@@ -95,6 +95,16 @@ For detailed instructions, see [Neon CLI commands — completion](https://neon.t
 | [set-context](https://neon.tech/docs/reference/cli-set-context) | | Set context for session | `neonctl set-context` |
 | [completion](https://neon.tech/docs/reference/cli-completion) | | Generate completion script | `neonctl completion` |
 
+## Exit Codes
+
+The CLI uses the following exit codes:
+
+| Exit Code | Description |
+|-----------|-------------|
+| 0 | Success |
+| 1 | General error |
+| 2 | Branch already exists (when using `branches create`) |
+
 ## Global options
 
 Global options can be used with any Neon CLI command:
