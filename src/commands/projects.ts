@@ -59,6 +59,14 @@ export const builder = (argv: yargs.Argv) => {
             type: 'boolean',
             default: false,
           },
+          'filter': {
+            describe: 'Filter projects by name (case-insensitive)',
+            type: 'string',
+          },
+          'region': {
+            describe: `Filter projects by region. Possible values: ${REGIONS.join(', ')}`,
+            type: 'string',
+          },
         }),
       async (args) => {
         await list(args as any);
@@ -177,7 +185,12 @@ export const handler = (args: yargs.Argv) => {
   return args;
 };
 
-const list = async (props: CommonProps & { orgId?: string; hideShared?: boolean }) => {
+const list = async (props: CommonProps & { 
+  orgId?: string; 
+  hideShared?: boolean;
+  filter?: string;
+  region?: string;
+}) => {
   const getList = async (
     fn:
       | typeof props.apiClient.listProjects
@@ -219,11 +232,40 @@ const list = async (props: CommonProps & { orgId?: string; hideShared?: boolean 
       props.hideShared ? [] : getList(props.apiClient.listSharedProjects),
     ]);
 
-    // Sort projects by name for better readability
-    const sortedOwnedProjects = [...ownedProjects].sort((a, b) => a.name.localeCompare(b.name));
-    const sortedSharedProjects = [...sharedProjects].sort((a, b) => a.name.localeCompare(b.name));
+    // Filter and sort projects
+    const filterProjects = (projects: ProjectListItem[]) => {
+      return projects
+        .filter(project => {
+          // Apply name filter if provided
+          if (props.filter && !project.name.toLowerCase().includes(props.filter.toLowerCase())) {
+            return false;
+          }
+          // Apply region filter if provided
+          if (props.region && project.region_id !== props.region) {
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+    };
+
+    const sortedOwnedProjects = filterProjects(ownedProjects);
+    const sortedSharedProjects = filterProjects(sharedProjects);
 
     const out = writer(props);
+
+    // Log filter information if filters are applied
+    if (props.filter || props.region) {
+      log.debug(
+        'Applied filters: %s',
+        [
+          props.filter && `name contains "${props.filter}"`,
+          props.region && `region is "${props.region}"`,
+        ]
+          .filter(Boolean)
+          .join(', '),
+      );
+    }
 
     out.write(sortedOwnedProjects, {
       fields: PROJECT_FIELDS,

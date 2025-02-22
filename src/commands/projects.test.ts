@@ -18,6 +18,26 @@ describe('projects', () => {
     await testCliCommand(['projects', 'list', '--hide-shared']);
   });
 
+  test('list with name filter', async ({ testCliCommand }) => {
+    await testCliCommand(['projects', 'list', '--filter', 'Project_1']);
+  });
+
+  test('list with region filter', async ({ testCliCommand }) => {
+    await testCliCommand(['projects', 'list', '--region', 'aws-us-east-2']);
+  });
+
+  test('list with multiple filters', async ({ testCliCommand }) => {
+    await testCliCommand([
+      'projects', 
+      'list', 
+      '--filter', 
+      'Project',
+      '--region', 
+      'aws-us-east-2',
+      '--hide-shared'
+    ]);
+  });
+
   test('create', async ({ testCliCommand }) => {
     await testCliCommand(['projects', 'create', '--name', 'test_project']);
   });

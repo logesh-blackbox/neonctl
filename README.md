@@ -99,6 +99,8 @@ For detailed instructions, see [Neon CLI commands — completion](https://neon.t
 The `projects list` command supports the following options:
 - `--org-id`: List projects of a given organization
 - `--hide-shared`: Hide shared projects from the output
+- `--filter`: Filter projects by name (case-insensitive)
+- `--region`: Filter projects by region (e.g., aws-us-east-2)
 
 Examples:
 ```bash
@@ -110,11 +112,22 @@ neonctl projects list --org-id <org-id>
 
 # List only owned projects (hide shared projects)
 neonctl projects list --hide-shared
+
+# Filter projects by name
+neonctl projects list --filter myproject
+
+# Filter projects by region
+neonctl projects list --region aws-us-east-2
+
+# Combine multiple filters
+neonctl projects list --filter prod --region aws-us-east-2 --hide-shared
 ```
 
-The output is sorted alphabetically by project name and includes:
-- Projects owned by you or your organization
-- Projects shared with you (unless --hide-shared is specified)
+The output is:
+- Sorted alphabetically by project name
+- Filtered based on provided criteria (name, region)
+- Includes projects owned by you or your organization
+- Includes projects shared with you (unless --hide-shared is specified)
 
 ## Global options
 
