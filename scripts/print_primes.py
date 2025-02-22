@@ -73,7 +73,7 @@ def main():
             if n > 1_000_000:
                 raise ValueError("Number of primes is too large. Maximum allowed is 1,000,000.")
         else:
-            n = 100  # Default to 100 primes if no argument is provided
+            n = 50  # Default to 50 primes if no argument is provided
         
         primes = generate_n_primes(n)
         print(f"The first {n} prime numbers are:")
