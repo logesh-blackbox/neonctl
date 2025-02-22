@@ -95,6 +95,27 @@ For detailed instructions, see [Neon CLI commands — completion](https://neon.t
 | [set-context](https://neon.tech/docs/reference/cli-set-context) | | Set context for session | `neonctl set-context` |
 | [completion](https://neon.tech/docs/reference/cli-completion) | | Generate completion script | `neonctl completion` |
 
+### Project Listing Options
+The `projects list` command supports the following options:
+- `--org-id`: List projects of a given organization
+- `--hide-shared`: Hide shared projects from the output
+
+Examples:
+```bash
+# List all projects (both owned and shared)
+neonctl projects list
+
+# List projects for a specific organization
+neonctl projects list --org-id <org-id>
+
+# List only owned projects (hide shared projects)
+neonctl projects list --hide-shared
+```
+
+The output is sorted alphabetically by project name and includes:
+- Projects owned by you or your organization
+- Projects shared with you (unless --hide-shared is specified)
+
 ## Global options
 
 Global options can be used with any Neon CLI command:
