@@ -1,7 +1,7 @@
 const HAIKU_REGEX = /^[a-z]+-[a-z]+-[a-z0-9]+$/;
 
-export const looksLikeBranchId = (branch: string) =>
-  branch.startsWith('br-') && HAIKU_REGEX.test(branch.substring(3));
+export const looksLikeBranchId = (branch: string | number) =>
+  String(branch).startsWith('br-') && HAIKU_REGEX.test(String(branch).substring(3));
 
 const LSN_REGEX = /^[a-fA-F0-9]{1,8}\/[a-fA-F0-9]{1,8}$/;
 
